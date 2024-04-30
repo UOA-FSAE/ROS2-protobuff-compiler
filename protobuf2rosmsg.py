@@ -146,7 +146,7 @@ def parse_protobuf(f_proto: TextIOWrapper, msg_dest: str, srv_dest: str):
             
         elif (message):
             # search line for message contents
-            groups = re.search(r"\s*(\w*)?\s(\S+)\s(\S+)\s?=\s?(\d*);\s*(?:(?:(?:\/\/)|(?:\/\*))((?:(?<=\/\*).*(?=\*\/))|(?:(?<=\/\/).*)))?", line)
+            groups = re.search(r"\s*(\w*)?\s(\S+)\s(\S+)\s?=\s?(\d*);\s*(?:(?:\/\*|\/)((?:(?<=\/\*).*(?=\*\/))|(?:(?<=\/\/).*)))?", line)
             if not(groups):
                 # Find message terminator
                 if (re.search(r"\}", line)):
@@ -204,7 +204,6 @@ def main():
     
     
     # clean msg and srv folders
-    # TODO clean relative to the .proto file
     if (args.clean or args.clean_folders):
         msg_dir_path = os.path.join(os.getcwd(), msg_dest)
         if os.path.isdir(msg_dir_path):
