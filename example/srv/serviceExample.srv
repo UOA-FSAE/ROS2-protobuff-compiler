@@ -1,0 +1,7 @@
+# Example of a comment 
+int64 id 
+string randomString 
+float aNumber 
+---
+string name 
+bool randomChanceValue 

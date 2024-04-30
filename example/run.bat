@@ -1,0 +1,1 @@
+python %~dp0..\protobuf2rosmsg.py -f %~dp0ros_schema.proto -m %~dp0msg -s %~dp0srv -c
