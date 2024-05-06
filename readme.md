@@ -15,5 +15,5 @@ protobuf2rosmsg.py [-f YOUR-FILE.proto] [-m PATH-TO-MSG_DEST] [-s
 PATH-TO-SRV-DEST] [-c|-C]
 
 
-Within the example folder there a ros_schema.proto, a run.bat and clean.bat that
+Within the example folder there is a ros_schema.proto, a run.bat and clean.bat that
 shows how this script can be used

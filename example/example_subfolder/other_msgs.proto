@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+message RandomStruct {
+    Foo foo = 1;
+    Bar bar = 2;
+}
+
+message Foo {
+    int value1 = 1;
+    int value2 = 2;
+}
+
+message Bar {
+    string string1 = 1;
+    string string2 = 2; 
+}
+
+message Buzz {
+    bool bool1 = 1;
+    bool bool2 = 2;
+}

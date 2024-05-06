@@ -4,16 +4,14 @@ import os
 from typing import List, Union
 # from typing import String
 import argparse
-from time import sleep
 
 parser = argparse.ArgumentParser(description="This proram generates ROS2 msg and srv files from a .proto source file")
+
 parser.add_argument("-f", "--file", help="the relative file path to your .proto file", type=str)
 parser.add_argument("-m", "--msg_dest", help="the path to the folder which generated .msg files should be create", type=str, dest="msg_dest", default="./")
 parser.add_argument("-s", "--srv_dest", help="the path to the folder which generated .srv files should be create", type=str, dest="srv_dest", default="./")
 parser.add_argument("-c","--clean", help="removes pre-existing .msg and .srv files in the destination folders. \n(Warning this includes files not previously generated from this script", action="store_true", dest="clean", default=False)
 parser.add_argument("-C","--clean-folders", help="removes the .msg and .srv  destination folders. \n(Warning this includes files not previously generated from this script", action="store_true", dest="clean_folders", default=False)
-
-services = []
 
 class MessageField():
     def __init__(self, label, type, name, id, comment):
@@ -51,6 +49,7 @@ class Message():
         # print(comment)
         
         filepath = os.path.join(os.getcwd(), msg_dest, self.title + ".msg")
+        print("message file path: ", filepath)
         f_msg: TextIOWrapper = open(filepath, "w")
         
         msg_str = self.to_string()
@@ -122,13 +121,28 @@ class MessageFactory():
             message.create_msg_file(msg_dest)
 
 
-def parse_protobuf(f_proto: TextIOWrapper, msg_dest: str, srv_dest: str):
-    MF = MessageFactory()
+def parse_protobuf(MF: MessageFactory, f_proto: TextIOWrapper, msg_dest: str, srv_dest: str):
 
     message = None
     service = None
     message_obj = None
     for line in f_proto:
+        importArg = re.search(r"import\s\"((?:\w+\/*)+)\/(\w+)\";", line)
+        if (importArg):
+            folder = importArg.group(1)
+            file = importArg.group(2) + ".proto"
+            
+            
+            proto_file_path = os.path.join(os.getcwd(), folder, file)
+            print("import file path: ", proto_file_path)
+            if os.path.isfile(proto_file_path):
+                sub_f_proto: TextIOWrapper = open(proto_file_path, "r")
+            
+                parse_protobuf(MF, sub_f_proto, msg_dest, srv_dest)
+            else:
+                print("Can't import - File not found!")
+
+        
         if not(message) and not(service):
             # Find message headers
             message = re.match(r"^message\s([^\s\{]*)", line)
@@ -166,7 +180,7 @@ def parse_protobuf(f_proto: TextIOWrapper, msg_dest: str, srv_dest: str):
             
             
         elif (service):                
-            groups = re.search(r"rpc\s*(\w+)\s*\((\w+)\)\s*returns\s*\((\w*)\);\s*(?:(?:(?:\/\/)|(?:\/\*))((?:(?<=\/\*).*(?=\*\/))|(?:(?<=\/\/).*)))?", line)
+            groups = re.search(r"rpc\s*(\w+)\s*\((\w+)\)\s*returns\s*\((\w*)\);\s*(?:(?:\/\*|\/)((?<=\/\*).*(?=\*\/))|(?:(?<=\/\/).*))?", line)
             # print(groups)
             if not(groups):
                 # Find message terminator
@@ -181,7 +195,8 @@ def parse_protobuf(f_proto: TextIOWrapper, msg_dest: str, srv_dest: str):
             srv_comment = groups.group(4)
             
             MF.create_service(srv_title, request_title, responce_title, srv_comment)
-            
+    
+    f_proto.close()        
     # create files
     MF.create_files(msg_dest, srv_dest)
 
@@ -219,7 +234,7 @@ def main():
                 if os.path.isfile(file_path) and file_path.endswith('.srv'):
                     os.remove(file_path)
             
-        
+        # remove folders
         if (args.clean_folders):
             if not os.path.samefile(os.getcwd(), msg_dir_path):
                 os.rmdir(msg_dir_path)
@@ -237,17 +252,19 @@ def main():
         if os.path.isfile(proto_file_path):
             f_proto: TextIOWrapper = open(proto_file_path, "r")
             
+            
+            MF = MessageFactory()
+            
             # create new messages and services from proto file
             header: str = f_proto.readline().replace("\n", "")
             if (re.search(r"(syntax\s?=\s?([\"'])proto3\2;)", header).group()):
                 print("proto3 detected")
-                parse_protobuf(f_proto, msg_dest, srv_dest)
+                parse_protobuf(MF, f_proto, msg_dest, srv_dest)
             else:
                 print("defaulting to proto2")
                 # TODO add default support for proto2
                 print("Sorry, there is nothing implemented for proto2 ¯\_(ツ)_/¯")
                 
-            f_proto.close()
         else:
             print("Input Error: .proto file not found at ", proto_file_path) 
 

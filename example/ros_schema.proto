@@ -1,7 +1,7 @@
 syntax = "proto3";
-import "std_msgs";
+import "example_subfolder/other_msgs";
 
-message can {
+message Can {
     uint16 id = 1;
     bool is_rtr = 2;
     repeated uint8 data = 3;
@@ -22,16 +22,22 @@ message BoundaryStamped {
 }
 
 service ServiceThingy {
-    rpc serviceExample (serviceRequestExample) returns (serviceResponceExample); /* Example of a comment */
+    rpc serviceExample (ServiceRequestExample) returns (ServiceResponceExample); /* Example of a comment */
 }
 
-message serviceRequestExample {
+message ServiceRequestExample {
     int64 id = 1;
     string randomString = 2;
     float aNumber = 3;
 }
 
-message serviceResponceExample {
+message ServiceResponceExample {
     string name = 1;
     bool randomChanceValue = 2;
+}
+
+
+message RandomMessage {
+    RandomStruct struct = 1;
+    Buzz buzz = 2;
 }
