@@ -78,7 +78,10 @@ class Service():
         request_str = request.to_string()
         responce_str = responce.to_string()
         
-        srv_str = "#" + self.comment + "\n" + request_str + "---\n" + responce_str
+        srv_str = ""
+        if self.comment:
+            srv_str += "#" + self.comment + "\n"
+        srv_str += request_str + "---\n" + responce_str
         
         # print(srv_str)
         f_srv.write(srv_str)
