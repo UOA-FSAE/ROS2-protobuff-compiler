@@ -13,35 +13,18 @@ parser.add_argument("-s", "--srv_dest", help="the path to the folder which gener
 parser.add_argument("-c","--clean", help="removes pre-existing .msg and .srv files in the destination folders. \n(Warning this includes files not previously generated from this script", action="store_true", dest="clean", default=False)
 parser.add_argument("-C","--clean-folders", help="removes the .msg and .srv  destination folders. \n(Warning this includes files not previously generated from this script", action="store_true", dest="clean_folders", default=False)
 
-class RepeatedField():
-    def __init__(self, is_leaf: bool, val: str) -> None:
-        self.is_leaf = is_leaf
-        self.val = val
-        
 
-    def resolve(self, mf) -> str:
-        if (self.is_leaf):
-            return self.val + "[]"
-        else:
-            field = mf.get_repeat_field(self.val)
-            if field == None:
-                raise KeyError("Message definition not found within .proto file")
-            return field.resolve(mf) + "[]"
+
+REPEAT_PREFIX = "Rpt"
 
 class MessageField():
-    def __init__(self, label, type, name, id, comment, meta_repeated):
+    def __init__(self, label, type, name, id, comment):
         self.label = label
         self.type = type
         self.name = name
         self.id = id
         self.comment = comment
-        self.meta_repeated = meta_repeated
         
-    def resolve_type(self, mf) -> None:
-        if self.meta_repeated:
-            self.type = mf.get_repeat_field(self.type).resolve(mf)
-            self.meta_repeated = False
-    
     def to_string(self) -> str:
         msg_buffer = self.type.replace(".", "/")
         
@@ -49,8 +32,6 @@ class MessageField():
         if (self.label == "repeated"):
             msg_buffer += "[]"
             
-        if (self.meta_repeated):
-            msg_buffer += "[]"
         msg_buffer += " " + self.name + " " 
         
         if self.comment:
@@ -63,12 +44,8 @@ class Message():
         self.title = title
         self.fields:List[MessageField] = []
         
-    def add_field(self, label, type, name, id, comment, meta_repeated):
-        self.fields.append(MessageField(label, type, name, id, comment, meta_repeated))
-    
-    def resolve_field_types(self, mf):
-        for field in self.fields:
-            field.resolve_type(mf)
+    def add_field(self, label, type, name, id, comment):
+        self.fields.append(MessageField(label, type, name, id, comment))
     
     def create_msg_file(self, msg_dest: str):
         # print(type)
@@ -119,16 +96,6 @@ class MessageFactory():
     def __init__(self):
         self.messages: List[Message] = []
         self.services: List[Service] = []
-        self.repeat_fields: Dict[str, RepeatedField] = {}
-        
-    def set_repeat_field(self, key:str, val: RepeatedField) -> None:
-        self.repeat_fields[key] = val
-        
-    def get_repeat_field(self, key: str) -> RepeatedField:
-        field = self.repeat_fields.get(key)
-        if field == None:
-            raise KeyError(f"Type definition: {key} not yet found within .proto file. Can not repeat")
-        return field
         
     def get_message(self, msg_title: str) -> Message:
         for msg in self.messages:
@@ -163,7 +130,6 @@ class MessageFactory():
             
         # create msg files from left over messages
         for message in self.messages:
-            message.resolve_field_types(self)
             message.create_msg_file(msg_dest)
 
 
@@ -208,27 +174,11 @@ def parse_protobuf(MF: MessageFactory, f_proto: TextIOWrapper, msg_dest: str, sr
             # print(service)
             if (service):
                 srv_header = service.group(1) #? Do we need this for anything?
-        elif (repeated_field):
-            groups = re.search(r"\s*(\w*)?\s(repeated)?(\S+)\s(\S+)\s?=\s?(\d*);\s*(?:(?:\/\*|\/)((?<=\/\*).*(?=\*\/))|(?:(?<=\/\/).*))?", line)
-            if not(groups):
-                # Find message terminator
-                if (re.search(r"\}", line)):
-                    repeated_field = None
-                # skip empty/terminator/invalid lines
-                continue
-            
-            rptd_f_repeated = groups.group(1) == "repeated" #protobuff's repeated keyword
-            rptd_f_is_leaf = groups.group(2) == None #repeated affixed to type
-            rptd_f_type = groups.group(3)
-            
-            MF.set_repeat_field(repeated_field, RepeatedField(rptd_f_is_leaf, rptd_f_type))
-
-
             
             
         elif (message):
             # search line for message contents
-            groups = re.search(r"\s*(\w*)?\s(repeated)?(\S+)\s(\S+)\s?=\s?(\d*);\s*(?:(?:\/\*|\/)((?<=\/\*).*(?=\*\/))|(?:(?<=\/\/).*))?", line)
+            groups = re.search(r"\s*(\w*)?\s(\S+)\s(\S+)\s?=\s?(\d*);\s*(?:(?:\/\*|\/)((?<=\/\*).*(?=\*\/))|(?:(?<=\/\/).*))?", line)
             if not(groups):
                 # Find message terminator
                 if (re.search(r"\}", line)):
@@ -239,13 +189,24 @@ def parse_protobuf(MF: MessageFactory, f_proto: TextIOWrapper, msg_dest: str, sr
             # print(groups.groups())
             # append to file
             msg_f_label = groups.group(1)
-            msg_f_meta_repeated = groups.group(2) == "repeated"
-            msg_f_type = groups.group(3)
-            msg_f_name = groups.group(4)
-            msg_f_id = groups.group(5) # not needed for msg file
-            msg_f_comment = groups.group(6)
+            msg_f_type = groups.group(2)
+            msg_f_name = groups.group(3)
+            msg_f_id = groups.group(4) # not needed for msg file
+            msg_f_comment = groups.group(5)
             
-            message_obj.add_field(msg_f_label, msg_f_type, msg_f_name, msg_f_id, msg_f_comment, msg_f_meta_repeated)
+            msg_f_type.count("REPEAT_PREFIX")
+            repeats_result = re.search(r"^("+REPEAT_PREFIX+")+", msg_f_type)
+            if repeats_result:
+                repeats = repeats_result.group(0)
+            else:
+                repeats = ""
+            repeats_count = (int) (len(repeats)/len(REPEAT_PREFIX))
+            
+            msg_f_type = msg_f_type.replace(repeats, "")
+            msg_f_type += "[]"*repeats_count
+            
+            
+            message_obj.add_field(msg_f_label, msg_f_type, msg_f_name, msg_f_id, msg_f_comment)
             
             
         elif (service):                
